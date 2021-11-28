@@ -1,0 +1,264 @@
+---
+title: "A4.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#https://archive.ics.uci.edu/ml/datasets/Dry+Bean+Dataset
+beans = read.csv("Dry_Bean_Dataset.csv")
+
+summary(beans)
+
+#As the values in Area and ConvexArea seem very large compared to the other values, scaling the data would be ideal to prevent overweighing these variables. 
+
+``` 
+
+```{r}
+beans[,1:16] = scale(beans[,1:16])
+summary(beans)
+#looks much better scaled. 
+set.seed(23)
+train = sample(1:nrow(beans),0.7*nrow(beans))
+test = -train
+
+boxplot(Area~Class,data=beans)
+boxplot(Perimeter~Class,data=beans)
+boxplot(MajorAxisLength~Class,data=beans)
+boxplot(MinorAxisLength~Class,data=beans)
+boxplot(AspectRation~Class,data=beans)
+boxplot(Eccentricity~Class,data=beans)
+boxplot(ConvexArea~Class,data=beans)
+boxplot(EquivDiameter~Class,data=beans)
+boxplot(Extent~Class,data=beans)
+boxplot(Solidity~Class,data=beans)
+boxplot(roundness~Class,data=beans)
+boxplot(Compactness~Class,data=beans)
+boxplot(ShapeFactor1~Class,data=beans)
+boxplot(ShapeFactor2~Class,data=beans)
+boxplot(ShapeFactor3~Class,data=beans)
+boxplot(ShapeFactor4~Class,data=beans)
+#The features that have similar boxplots are:
+#perimeter, majoraxislength, convexarea, equivdiam
+#Area and MinorAxisLength
+#compactness, sf3
+#From this, I would suggest removing MajorAL, ConvexArea, EquivDiameter, MinorAL, & ShapeFactor3. Creating a model with 11 features. 
+#Will try each method with 16 and 11 features. 
+```
+
+```{r}
+library(MASS)
+dim(beans)
+names(beans)
+#n=13611, C=7, p=16
+
+```
+
+```{r}
+
+#LDA
+lda.fit = lda(Class~., data=beans,subset=train)
+lda.pred=predict(lda.fit,beans[test,])
+table(lda.pred$class,beans[test,17])
+#377/4084 = 9.2% misclassification rate.
+
+#LDA with 11 features
+lda.fit = lda(Class~.-MajorAxisLength-ConvexArea-EquivDiameter-MinorAxisLength-ShapeFactor3, data=beans,subset=train)
+lda.pred=predict(lda.fit,beans[test,])
+table(lda.pred$class,beans[test,17])
+#419/4084 = 10.3% misclassification rate.
+```
+
+```{r}
+
+#LOOCV
+#921/9527 = 9.7% misclassification rate.
+set.seed(23)
+lda.fit = lda(Class~., data=beans,subset=train,CV=TRUE)
+table(lda.fit$class,beans[train,17])
+
+#LOOCV model selection
+#Without Area didn't change much
+#Perimeter didn't change much at all
+#MajorAL didn't change much
+#MinorAL didn't
+#Aspect didn't
+#Eccentrictiy didn't
+#Convex didn't
+#Equiv didn't
+#Extent didn't
+#Solidity dropped to 906/9527 = 9.5% misclassification not enough difference. Gave 382/4084 on the test error rate which is not better than with all variables. 
+#roundness didn't
+#Compactness didn't
+#Sf1 didn't
+#Sf2 didn't
+#sf3 didn't
+#sf4 didn't
+lda.fit = lda(Class~.-MajorAxisLength-ConvexArea-EquivDiameter-MinorAxisLength-ShapeFactor3, data=beans,subset=train,CV=TRUE)
+table(lda.fit$class,beans[train,17])
+```
+
+```{r}
+#QDA
+set.seed(23)
+qda.fit = qda(Class~., data=beans,subset=train)
+qda.pred = predict(qda.fit,beans[test,])
+table(qda.pred$class,beans[test,17])
+#342/4084 = 8.4% misclassification rate. Better than LDA.
+
+#QDA cross-validation
+set.seed(23)
+qda.fit = qda(Class~., data=beans,subset=train,CV=TRUE)
+table(qda.fit$class,beans[train,17])
+#823/9527 = 8.6 % misclassification rate. 
+
+set.seed(23)
+qda.fit = qda(Class~.-MajorAxisLength-ConvexArea-EquivDiameter-MinorAxisLength-ShapeFactor3, data=beans,subset=train,CV=TRUE)
+table(qda.fit$class,beans[train,17])
+#Removing Solidity to check improvements. 
+#825/9527 = no improvement. 
+
+```
+
+```{r}
+#KNN
+library(class)
+set.seed(3)
+knn.pred = knn(beans[train,-17],beans[test,-17],beans[train,17],k=7)
+table(knn.pred,beans[test,17])
+#300/4084 = 7.3% misclassification rate with k=7.
+
+
+```
+
+```{r}
+#KNN cross-validation
+
+```
+
+```{r}
+#SVMs
+library(e1071)
+y = as.factor(beans$Class)
+Xtrain = data.frame(y=y[train],area=beans$Area[train], perimeter=beans$Perimeter[train], major = beans$MajorAxisLength[train], minor=beans$MinorAxisLength[train], aspect=beans$AspectRation[train], eccentricity=beans$Eccentricity[train], convex = beans$ConvexArea[train], equiv = beans$EquivDiameter[train], extent = beans$Extent[train], solidity = beans$Solidity[train], roundness =beans$roundness[train], compactness=beans$Compactness[train], sf1=beans$ShapeFactor1[train], sf2=beans$ShapeFactor2[train], sf3=beans$ShapeFactor3[train], sf4=beans$ShapeFactor4[train])
+
+Xtest = data.frame(y=y[test],area=beans$Area[test], perimeter=beans$Perimeter[test], major = beans$MajorAxisLength[test], minor=beans$MinorAxisLength[test], aspect=beans$AspectRation[test], eccentricity=beans$Eccentricity[test], convex = beans$ConvexArea[test], equiv = beans$EquivDiameter[test], extent = beans$Extent[test], solidity = beans$Solidity[test], roundness =beans$roundness[test], compactness=beans$Compactness[test], sf1=beans$ShapeFactor1[test], sf2=beans$ShapeFactor2[test], sf3=beans$ShapeFactor3[test], sf4=beans$ShapeFactor4[test])
+
+svmfit = svm(y~area+perimeter+major+minor+aspect+eccentricity+convex+equiv+extent+solidity+roundness+compactness+sf1+sf2+sf3+sf4, data=Xtrain,kernel="linear")
+
+summary(svmfit)
+
+```
+
+```{r}
+#SVM cross-validation
+library(e1071)
+set.seed(32)
+tune.out = tune(svm, y~area+perimeter+major+minor+aspect+eccentricity+convex+equiv+extent+solidity+roundness+compactness+sf1+sf2+sf3+sf4, data=Xtrain, kernel="linear", ranges=list(cost=c(0.01, 0.03, 0.1, 0.3, 1, 3, 5, 7, 9, 12, 20, 30, 50)))
+tune.out
+```
+
+```{r}
+set.seed(69)
+pred = predict(tune.out$best.model, Xtest)
+table(pred, Xtest$y)
+#290/4084 = 7.1% misclassification rate. 
+```
+```{r}
+library(kernlab)
+set.seed(100)
+kernfit = ksvm(y~area+perimeter+major+minor+aspect+eccentricity+convex+equiv+extent+solidity+roundness+compactness+sf1+sf2+sf3+sf4, data=Xtrain,type="C-svc", kernel="vanilladot", cross = 10, C = 7)
+
+kernfit
+```
+
+```{r}
+#SVM prediction
+set.seed(13)
+pred = predict(kernfit, Xtest)
+table(pred, Xtest$y)
+#288/4084 = 7.1% misclassification rate. 
+
+```
+
+```{r}
+set.seed(2)
+kernfit2 = ksvm(y~., data=Xtrain, kernel="rbfdot",C=10000,kpar=list(sigma=0.001))
+kernfit2
+
+pred2=predict(kernfit2,Xtest)
+table(pred2,Xtest$y)
+#277/4084 = 6.8% misclassification rate.
+```
+
+```{r}
+#Multinomial logistic regression MLR
+library(nnet)
+mlr = multinom(Class~.,data=beans,subset=train)
+summary(mlr)
+
+```
+
+```{r}
+set.seed(5)
+pred4 = predict(mlr)
+table(pred4,beans$Class[train])
+#Training error is 698/9527 = 7.3%
+
+pred5 = predict(mlr, newdata=beans[test,])
+table(pred5, beans$Class[test])
+#298/4084 = 7.3% misclassification rate
+
+#model selection with AIC
+mlrAIC = step(mlr)
+mlrAIC
+
+#model with Perimeter, MinorAL, AspectRation, EquivDiam, Extent, Solidity, roundness, Sf2, sf3, sf4 has the lowest AIC. 
+```
+```{r}
+mlr2 = multinom(Class~.-Area-MajorAxisLength-Eccentricity-ConvexArea-Compactness-ShapeFactor1,data=beans,subset=train)
+summary(mlr2)
+```
+```{r}
+set.seed(5)
+pred6 = predict(mlr2)
+table(pred6,beans$Class[train])
+#Training error is 707/9527 = 7.4%
+
+pred7 = predict(mlr2, newdata=beans[test,])
+table(pred7, beans$Class[test])
+#298/4084 = 7.3% misclassification rate
+#results in exactly the same misclassification rate with only using 10 of the features. 
+```
+
+```{r}
+#trying the gaussian radial basis function using the model with 10 features. 
+set.seed(2)
+kernfit3 = ksvm(y~.-area-major-eccentricity-convex-compactness-sf1, data=Xtrain, kernel="rbfdot",C=10000,kpar=list(sigma=0.001))
+kernfit3
+
+pred8=predict(kernfit3,Xtest)
+table(pred8,Xtest$y)
+#269/4084 = 6.6% misclassification rate.
+#The best yet. 
+```
+```{r}
+library(kernlab)
+set.seed(100)
+kernfit3 = ksvm(y~perimeter+minor+aspect+equiv+extent+solidity+roundness+sf2+sf3+sf4, data=Xtrain,type="C-svc", kernel="vanilladot", cross = 10, C = 7)
+
+kernfit3
+pred2=predict(kernfit2,Xtest)
+table(pred2,Xtest$y)
+#277/4084 = 6.8%
+```
+
